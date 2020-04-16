@@ -1,37 +1,416 @@
-﻿## 简介
+﻿ layui 模态框提示
+![](https://img2020.cnblogs.com/blog/1134658/202004/1134658-20200416205728041-647573428.png)
 
-ThinkPHP 是一个免费开源的，快速、简单的面向对象的 轻量级PHP开发框架 ，创立于2006年初，遵循Apache2开源协议发布，是为了敏捷WEB应用开发和简化企业应用开发而诞生的。ThinkPHP从诞生以来一直秉承简洁实用的设计原则，在保持出色的性能和至简的代码的同时，也注重易用性。并且拥有众多的原创功能和特性，在社区团队的积极参与下，在易用性、扩展性和性能方面不断优化和改进，已经成长为国内最领先和最具影响力的WEB应用开发框架，众多的典型案例确保可以稳定用于商业以及门户级的开发。
+弹出框编辑信息
+![](https://img2020.cnblogs.com/blog/1134658/202004/1134658-20200416205801471-2033748453.png)
 
-## 全面的WEB开发特性支持
+操作后提示信息
+![](https://img2020.cnblogs.com/blog/1134658/202004/1134658-20200416205835960-1689982877.png)
 
-最新的ThinkPHP为WEB应用开发提供了强有力的支持，这些支持包括：
+thinkPHP 的主要代码，有些东西没完善好，得注意一些，具体不过多解释了，关于layui部分，可以参考layui的官网
+提示：layui的模态框不同于bootstrap，其很多内容都是需要渲染之后才有效果的，这一点需要注意。
 
-*  MVC支持-基于多层模型（M）、视图（V）、控制器（C）的设计模式
-*  ORM支持-提供了全功能和高性能的ORM支持，支持大部分数据库
-*  模板引擎支持-内置了高性能的基于标签库和XML标签的编译型模板引擎
-*  RESTFul支持-通过REST控制器扩展提供了RESTFul支持，为你打造全新的URL设计和访问体验
-*  云平台支持-提供了对新浪SAE平台和百度BAE平台的强力支持，具备“横跨性”和“平滑性”，支持本地化开发和调试以及部署切换，让你轻松过渡，打造全新的开发体验。
-*  CLI支持-支持基于命令行的应用开发
-*  RPC支持-提供包括PHPRpc、HProse、jsonRPC和Yar在内远程调用解决方案
-*  MongoDb支持-提供NoSQL的支持
-*  缓存支持-提供了包括文件、数据库、Memcache、Xcache、Redis等多种类型的缓存支持
+既然是渲染之后才有的dom，那么我们就需要在其渲染之后为一些按钮绑定所需要的事件，选择其渲染之后出现的 class 或 id 进行查找绑定事件。
+```
+<?php
+namespace Home\Controller;
+use Think\Controller;
 
-## 大道至简的开发理念
+use Home\Model\TestModel;
+use Think\Log;
 
-ThinkPHP从诞生以来一直秉承大道至简的开发理念，无论从底层实现还是应用开发，我们都倡导用最少的代码完成相同的功能，正是由于对简单的执着和代码的修炼，让我们长期保持出色的性能和极速的开发体验。在主流PHP开发框架的评测数据中表现卓越，简单和快速开发是我们不变的宗旨。
+class IndexController extends Controller {
+    public function index(){
+        $page = I("get.page");
+        if(!$page){
+            $page = 0;
+        }
+        $model = new TestModel();
+        $data = $model->limit($page*10,10)->order('id asc')->select();
+        $count = $model->where()->count();
+        $this->assign("count",$count);
+        $this->assign("data",$data);
+        $this->display();
+    }
 
-## 安全性
+    public function get_page_data(){
+        if(IS_AJAX){
+            $page = I("post.page");
+            $model = new TestModel();
+            $data = $model->limit($page*10,10)->order('id asc')->select();
+            if($data){
+                $message = "success";
+            }else{
+                $message = "fail";
+                $data = "获取数据失败";
+            }
+            $this->ajaxReturn(
+                array(
+                    "message" => $message,
+                    "data" => $data,
+                )
+            );
+        }
+    }
 
-框架在系统层面提供了众多的安全特性，确保你的网站和产品安全无忧。这些特性包括：
+    public function update_data(){
+        try{
+            if(IS_AJAX){
+                $id = I("post.id");
+                $da['name'] = I("post.name");
+                $da['age'] = I("post.age");
+                $model = new TestModel();
+                $result = $model->where("id=%d",$id)->save($da);
+                if($result){
+                    $message = "success";
+                    $data = "数据更新成功";
+                }else{
+                    $message = "fail";
+                    $data = "数据插入失败";
+                }
+                $this->ajaxReturn(
+                    array(
+                        "message" => $message,
+                        "data" => $data,
+                        "dddd" => $da,
+                        'ID'   =>$id,
+                    )
+                );
+            }
+        }catch (\Exception $e){
+            Log::record("[IndexController@update] error:" . $e->getMessage() . "; in file & line :" . $e->getFile()
+                . "[Line:".$e->getLine()."]" );
+            $this->ajaxReturn(
+                array(
+                    "message" => "fail",
+                    "data"    => $e->getMessage().";".$e->getFile(),
+                )
+            );
+        }
 
-*  XSS安全防护
-*  表单自动验证
-*  强制数据类型转换
-*  输入数据过滤
-*  表单令牌验证
-*  防SQL注入
-*  图像上传检测
+    }
 
-## 商业友好的开源协议
+    public function data_delete(){
+        try{
+            if(IS_AJAX){
+                $id = I("post.id");
+                if($id){
+                    $model = new TestModel();
+                    $result = $model->where("id=%d",$id)->delete();
+                    if($result){
+                        $message = "success";
+                        $data = "删除成功";
+                    }else{
+                        $message = "fail";
+                        $data = "删除失败";
+                    }
+                    $this->ajaxReturn(
+                        array(
+                            "message" => $message,
+                            "data" => $data,
+                        )
+                    );
+                }
+            }
+        }catch (\Exception $e){
+            Log::record("[IndexController@delete] error:" . $e->getMessage() . "; in file & line :" . $e->getFile()
+                . "[Line:".$e->getLine()."]" );
+            $this->ajaxReturn(
+                array(
+                    "message" => "fail",
+                    "data"    => $e->getMessage().";".$e->getFile(),
+                )
+            );
+        }
 
-ThinkPHP遵循Apache2开源协议发布。Apache Licence是著名的非盈利开源组织Apache采用的协议。该协议和BSD类似，鼓励代码共享和尊重原作者的著作权，同样允许代码修改，再作为开源或商业软件发布。
+    }
+
+    public function search(){
+        $this->assign("this_page", U('get_data'));
+        $this->display();
+    }
+
+    public function get_data(){
+        $id = I("post.id");
+        $model = new TestModel();
+        $data = $model->where("id=$id")->find();
+        $this->ajaxReturn($data);
+    }
+}
+```
+HTML主页
+```
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <link rel="stylesheet" href="__PUBLIC__/layui/css/layui.css">
+    <script src="__PUBLIC__/layui/layui.js"></script>
+    <script src="__PUBLIC__/js/jquery-3.3.1.min.js"></script>
+</head>
+<style>
+    table td{
+        text-align: center;
+    }
+</style>
+<body>
+<div class="layui-container" style="margin:25px auto;">
+
+    <div class="layui-row">
+
+
+        <div class="layui-col-md3">
+            <ul class="layui-nav layui-nav-tree" lay-filter="test">
+                <li class="layui-nav-item layui-nav-itemed">
+                    <a href="javascript:;">导航条</a>
+                    <dl class="layui-nav-child">
+                        <dd><a href="{:U('home/index/index')}" class="check_select">全部数据</a></dd>
+                        <dd><a style="cursor: pointer;" onclick="loading()">loading</a></dd>
+                        <dd><a href="">跳转</a></dd>
+                    </dl>
+                </li>
+                <li class="layui-nav-item">
+                    <a href="javascript:;">解决方案</a>
+                    <dl class="layui-nav-child">
+                        <dd><a href="">移动模块</a></dd>
+                        <dd><a href="">后台模版</a></dd>
+                        <dd><a href="">电商平台</a></dd>
+                    </dl>
+                </li>
+                <li class="layui-nav-item"><a href="">产品</a></li>
+                <li class="layui-nav-item"><a href="">大数据</a></li>
+            </ul>
+        </div>
+
+
+        <div class="content layui-col-md9">
+            <table class="layui-table">
+                <caption>详细信息表</caption>
+                <thead>
+                <tr>
+                    <th style="text-align: center;">ID</th>
+                    <th style="text-align: center;">name</th>
+                    <th style="text-align: center;">age</th>
+                    <th colspan="2" style="text-align: center">操作</th>
+                </tr>
+                </thead>
+                <tbody id="table-body">
+                <volist name="data" id="d">
+                    <tr>
+                        <td name="{$d.id}">{$d.id}</td>
+                        <td name="{$d.name}">{$d.name}</td>
+                        <td name="{$d.age}">{$d.age}</td>
+                        <td><button name="{$d.id}" type="button" class="layui-btn layui-btn-normal layui-btn-sm" onclick="data_edit(this)">编辑</button></td>
+                        <td><button name="{$d.id}" type="button" class="layui-btn layui-btn-danger layui-btn-sm" onclick="data_delete(this)">删除</button></td>
+                    </tr>
+                </volist>
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+    <div id="test1" style="text-align: right;margin-right: 30px;"></div>
+</div>
+
+<?php echo $_SERVER['REQUEST_SCHEME'].'://'.$_SERVER["SERVER_NAME"].$_SERVER["REQUEST_URI"] ?>
+
+
+</body>
+
+<script>
+
+    // layui 分页，ajax获取数据填充到表格
+    $(function () {
+        $('.check_select').each(function () {
+            if ($(this).attr("href") == "<?php echo $_SERVER['REQUEST_URI'] ?>") {
+                $(this).addClass("layui-this");
+            }
+        });
+
+        layui.use('laypage', function(){
+            var laypage = layui.laypage;
+
+            //执行一个laypage实例
+            laypage.render({
+                elem: 'test1',
+                count: {$count},//数据总数，从服务端得到
+                limit:10,
+                jump: function(obj, first){
+                    //obj包含了当前分页的所有参数，比如：
+                    console.log(obj.curr); //得到当前页，以便向服务端请求对应页的数据。
+                    console.log(obj.limit); //得到每页显示的条数
+
+                    //首次不执行
+                    if(!first){
+                        $.ajax({
+                            url: "{:U('home/index/get_page_data')}",
+                            data:{"page":obj.curr-1},
+                            type:"POST",
+                            success:function (result) {
+                                if(result.message == 'success'){
+                                    console.log(result.data);
+                                    $("#table-body").empty();
+
+                                    for(var i=0; i<result.data.length; i++){
+                                        var str = '<tr>\n' +
+                                            '<td name="'+  result.data[i].id +'">'+  result.data[i].id +'</td>\n' +
+                                            '<td name="'+  result.data[i].name +'">'+  result.data[i].name +'</td>\n' +
+                                            '<td name="'+  result.data[i].age +'">'+  result.data[i].age +'</td>\n' +
+                                            '<td><button name="'+  result.data[i].id +'" type="button" class="layui-btn layui-btn-  normal layui-btn-sm" onclick="data_edit(this)">编辑</button></td>\n' +
+                                            '<td><button name="'+  result.data[i].id +'" type="button" class="layui-btn layui-btn-danger layui-btn-sm" onclick="data_delete(this)">删除</button></td>\n' +
+                                            '</tr>';
+                                        $("#table-body").append(str);
+                                    }
+                                }else{
+                                    layui.msg(result.data);
+                                }
+                            },
+                            error:function (result) {
+                                console.log("error");
+                            }
+                        });
+                    }
+                }
+            });
+        });
+
+    });
+
+
+    // 删除按钮，删除后jquery移除一行数据
+    function data_delete(that) {
+        var id = $(that).attr("name");
+        layui.use('layer', function(){
+        layer.confirm('是否确定删除？', {
+            btn: ['取消','确定'] //按钮
+        }, function(){
+            layer.msg("已取消");
+        }, function(){
+            $.ajax({
+                url: "{:U('home/index/data_delete')}",
+                data:{"id":id},
+                type:"POST",
+                success:function (result) {
+                    console.log(result);
+                    if(result.message == "success"){
+                        $(that).parent().parent().remove();
+                    }
+                    layer.msg(result.data);
+                },
+                error:function (result) {
+                    console.log(result);
+                }
+            })
+
+        });
+    })
+    }
+
+    //注意：导航 依赖 element 模块，否则无法进行功能性操作，渲染左边导航条
+    layui.use('element', function () {
+        var element = layui.element;
+    });
+
+
+    function data_edit(that){
+        layui.use('layer', function(){
+            var layer = layui.layer;
+            layer.open({
+                type: 1,
+                area: ['600px', '360px'],
+                shadeClose: true, //点击遮罩关闭
+                content: '\<\div style="padding:20px;overflow: hidden">    ' +
+                '<form class="layui-form" id="update-edit-form">\n' +
+                '        <div class="layui-form-item">\n' +
+                '            <label class="layui-form-label">ID :</label>\n' +
+                '            <div class="layui-input-block">\n' +
+                '                <div type="text" autocomplete="off" style="padding-top:8px;line-height:20px;padding: 9px 15px;" id="edit-id1">不能访问</div>\n' +
+                '            </div>\n' +
+                '        </div>\n' +
+                '        <div class="layui-form-item">\n' +
+                '            <label class="layui-form-label">name :</label>\n' +
+                '            <div class="layui-input-block">\n' +
+                '                <input type="text" id="edit-name" name="name" autocomplete="off" class="layui-input">\n' +
+                '            </div>\n' +
+                '        </div>\n' +
+                '        <div class="layui-form-item">\n' +
+                '            <label class="layui-form-label">age :</label>\n' +
+                '            <div class="layui-input-block" id="permission-radio">\n' +
+                '                <input type="text" id="edit-age" name="age" autocomplete="off" class="layui-input">\n' +
+                '                <input type="hidden" id="edit-id2" name="id" autocomplete="off" class="layui-input">\n' +
+                '            </div>\n' +
+                '        </div>\n' +
+                '        \n' +
+                '        <div class="layui-form-item" style="margin-top:80px;margin-left:270px;">\n' +
+                '            <div class="layui-input-block">\n' +
+                '                <div class="layui-btn layui-btn-primary layui-layer-close1 layui-layer-close" id="edit-cancel">取消</div>\n' +
+                '                <div style="margin-left:90px;" class="layui-btn layui-btn-normal edit-submit">确定</div>\n' +
+                '            </div>\n' +
+                '        </div>\n' +
+                '    </form>'+
+                '</div>'
+            });
+
+            var id = $(that).parent().parent().children().eq(0).attr("name");
+            var name = $(that).parent().parent().children().eq(1).attr("name");
+            var age = $(that).parent().parent().children().eq(2).attr("name");
+
+            $("#edit-id1").text(id);
+            $("#edit-id2").val(id);
+            $("#edit-name").val(name);
+            $("#edit-age").val(age);
+            $(".layui-layer-title").text("修改个人信息");
+
+            // 为确定按钮绑定事件，这个函数只能定义在这个函数内部，定义在外部就算是动态绑定也不行，
+            $(".edit-submit").click(function () {
+                console.log("click");
+
+                var edit_name = $("#edit-name").val();
+                var edit_age = $("#edit-age").val();
+                if(name == edit_name && age==edit_age){
+                    layer.msg("没有做修改");
+                }else{
+                    $.ajax({
+                        type: "POST",
+                        url: "{:U('update_data')}",
+                        data: $('#update-edit-form').serialize(),
+                        success: function (result) {
+                            if(result.message == "success"){
+                                layui.use('element', function(){
+                                    layer.msg(result.data);
+                                });
+                                $(that).parent().parent().children().eq(1).attr("name",edit_name);
+                                $(that).parent().parent().children().eq(1).text(edit_name);
+                                $(that).parent().parent().children().eq(2).attr("name",edit_age);
+                                $(that).parent().parent().children().eq(2).text(edit_age);
+                                setTimeout(function(){$('#edit-cancel').click();},800);
+                            }else{
+                                layui.use('element', function(){
+                                    layer.msg(result.data);
+                                })
+                            }
+                        },
+                        error : function() {
+                            layui.use('element', function(){
+                                layer.msg("不能访问！");
+                            })
+                        }
+                    });
+                }
+            })
+        });
+    }
+
+    function loading() {
+        layui.use('layer', function(){
+            var layer = layui.layer;
+            var index = layer.load(0, {shade: false}); //0代表加载的风格，支持0-2
+        })
+    }
+
+</script>
+</html>
+```
+
+代码链接：github https://github.com/libai2017/TP-layui-demo.git
